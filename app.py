@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import os
 from pathlib import Path
+import io
 
 # Page configuration
 st.set_page_config(
@@ -54,51 +55,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Get the directory where the script is located
-SCRIPT_DIR = Path(__file__).parent.absolute()
-
-# File paths
-MODEL_PATH = SCRIPT_DIR / 'model (2).pkl'
-DATA_PATH = SCRIPT_DIR / 'Concrete_Data_Yeh.csv'
-
-# Alternative paths if files are in different locations
-# You can also specify absolute paths like:
-# MODEL_PATH = Path('/path/to/your/model (2).pkl')
-# DATA_PATH = Path('/path/to/your/Concrete_Data_Yeh.csv')
-
-# Load the model
-@st.cache_resource
-def load_model():
-    try:
-        if not MODEL_PATH.exists():
-            st.error(f"Model file not found at: {MODEL_PATH}")
-            st.info("Please ensure 'model (2).pkl' is in the same directory as this script.")
-            return None
-        
-        with open(MODEL_PATH, 'rb') as f:
-            model = pickle.load(f)
-        st.success("✅ Model loaded successfully!")
-        return model
-    except Exception as e:
-        st.error(f"Error loading model: {e}")
-        return None
-
-# Load and prepare data
-@st.cache_data
-def load_data():
-    try:
-        if not DATA_PATH.exists():
-            st.error(f"Data file not found at: {DATA_PATH}")
-            st.info("Please ensure 'Concrete_Data_Yeh.csv' is in the same directory as this script.")
-            return None
-        
-        df = pd.read_csv(DATA_PATH)
-        st.success(f"✅ Data loaded successfully! ({len(df)} records)")
-        return df
-    except Exception as e:
-        st.error(f"Error loading data: {e}")
-        return None
-
 # Feature names
 FEATURES = ['cement', 'slag', 'flyash', 'water', 'superplasticizer', 
             'coarseaggregate', 'fineaggregate', 'age']
@@ -114,7 +70,7 @@ FEATURE_NAMES_DISPLAY = {
     'age': 'Age (days)'
 }
 
-# Default values for each feature (median from dataset)
+# Default values for each feature
 DEFAULT_VALUES = {
     'cement': 305.0,
     'slag': 0.0,
@@ -126,7 +82,7 @@ DEFAULT_VALUES = {
     'age': 28.0
 }
 
-# Min and max values from data (for sliders)
+# Min and max values
 MIN_MAX_VALUES = {
     'cement': (100, 550),
     'slag': (0, 360),
@@ -137,6 +93,56 @@ MIN_MAX_VALUES = {
     'fineaggregate': (600, 1000),
     'age': (1, 365)
 }
+
+# Sample data for demonstration (if real data can't be loaded)
+SAMPLE_DATA = pd.DataFrame({
+    'cement': [540, 540, 332.5, 332.5, 198.6],
+    'slag': [0, 0, 142.5, 142.5, 132.4],
+    'flyash': [0, 0, 0, 0, 0],
+    'water': [162, 162, 228, 228, 192],
+    'superplasticizer': [2.5, 2.5, 0, 0, 0],
+    'coarseaggregate': [1040, 1055, 932, 932, 978.4],
+    'fineaggregate': [676, 676, 594, 594, 825.5],
+    'age': [28, 28, 270, 365, 360],
+    'csMPa': [79.99, 61.89, 40.27, 41.05, 44.3]
+})
+
+def load_model_from_file():
+    """Try to load model from various possible locations"""
+    possible_paths = [
+        Path('model (2).pkl'),
+        Path('/mount/src/xgboost_project/model (2).pkl'),
+        Path('./model (2).pkl'),
+        Path('model.pkl'),
+    ]
+    
+    for path in possible_paths:
+        if path.exists():
+            try:
+                with open(path, 'rb') as f:
+                    model = pickle.load(f)
+                return model, path
+            except:
+                continue
+    return None, None
+
+def load_data_from_file():
+    """Try to load data from various possible locations"""
+    possible_paths = [
+        Path('Concrete_Data_Yeh.csv'),
+        Path('/mount/src/xgboost_project/Concrete_Data_Yeh.csv'),
+        Path('./Concrete_Data_Yeh.csv'),
+        Path('data.csv'),
+    ]
+    
+    for path in possible_paths:
+        if path.exists():
+            try:
+                df = pd.read_csv(path)
+                return df, path
+            except:
+                continue
+    return None, None
 
 def predict_strength(model, input_data):
     """Make prediction using the loaded model"""
@@ -155,70 +161,71 @@ def get_strength_category(strength):
     else:
         return "Very High Strength", "💪"
 
-# File upload section for manual file selection
-def file_upload_section():
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 📁 File Upload")
-    
-    uploaded_model = st.sidebar.file_uploader("Upload Model File (optional)", type=['pkl'])
-    uploaded_data = st.sidebar.file_uploader("Upload Data File (optional)", type=['csv'])
-    
-    return uploaded_model, uploaded_data
-
 # Main app
 def main():
     # Header
     st.markdown('<div class="main-header">🏗️ Concrete Compressive Strength Predictor</div>', 
                 unsafe_allow_html=True)
-    st.markdown('<div class="info-text">Predict the 28-day compressive strength of concrete using mixture proportions</div>', 
+    st.markdown('<div class="info-text">Predict the compressive strength of concrete using mixture proportions</div>', 
                 unsafe_allow_html=True)
     
-    # File upload section
-    uploaded_model, uploaded_data = file_upload_section()
+    # Initialize session state for model and data
+    if 'model' not in st.session_state:
+        st.session_state.model = None
+    if 'df' not in st.session_state:
+        st.session_state.df = None
     
-    # Load model and data
-    model = None
-    df = None
-    
-    if uploaded_model is not None:
-        # Use uploaded model
-        try:
-            model = pickle.load(uploaded_model)
-            st.sidebar.success("✅ Custom model loaded!")
-        except Exception as e:
-            st.sidebar.error(f"Error loading custom model: {e}")
-    else:
-        # Try to load from default path
-        model = load_model()
-    
-    if uploaded_data is not None:
-        # Use uploaded data
-        try:
-            df = pd.read_csv(uploaded_data)
-            st.sidebar.success(f"✅ Custom data loaded! ({len(df)} records)")
-        except Exception as e:
-            st.sidebar.error(f"Error loading custom data: {e}")
-    else:
-        # Try to load from default path
-        df = load_data()
-    
-    if model is None:
-        st.warning("""
-        ### ⚠️ Model Not Loaded
-        
-        Please ensure the model file 'model (2).pkl' is in the same directory as this script.
-        
-        **Troubleshooting steps:**
-        1. Check if the file exists in the current directory
-        2. Use the file uploader in the sidebar to upload the model manually
-        3. Verify the file name is exactly 'model (2).pkl' (including spaces)
-        
-        **Current working directory:** `{}`
-        """.format(os.getcwd()))
-        st.stop()
-    
-    # Sidebar for input
+    # Sidebar for file upload
     with st.sidebar:
+        st.markdown("## 📁 File Upload")
+        st.markdown("Upload your model and data files:")
+        
+        # Model upload
+        uploaded_model = st.file_uploader(
+            "Upload Model File (model.pkl)", 
+            type=['pkl'],
+            help="Upload the trained XGBoost model file"
+        )
+        
+        # Data upload
+        uploaded_data = st.file_uploader(
+            "Upload Data File (CSV)", 
+            type=['csv'],
+            help="Upload the concrete data CSV file"
+        )
+        
+        if uploaded_model is not None:
+            try:
+                st.session_state.model = pickle.load(uploaded_model)
+                st.success("✅ Model loaded successfully!")
+            except Exception as e:
+                st.error(f"Error loading model: {e}")
+        
+        if uploaded_data is not None:
+            try:
+                st.session_state.df = pd.read_csv(uploaded_data)
+                st.success(f"✅ Data loaded! ({len(st.session_state.df)} records)")
+            except Exception as e:
+                st.error(f"Error loading data: {e}")
+        
+        # Try to load from files if not uploaded
+        if st.session_state.model is None:
+            st.markdown("---")
+            st.markdown("### 🔍 Trying default files...")
+            model, model_path = load_model_from_file()
+            if model is not None:
+                st.session_state.model = model
+                st.success(f"✅ Model loaded from: {model_path}")
+            else:
+                st.warning("⚠️ No model file found. Please upload a model file.")
+        
+        if st.session_state.df is None:
+            df, data_path = load_data_from_file()
+            if df is not None:
+                st.session_state.df = df
+                st.success(f"✅ Data loaded from: {data_path}")
+        
+        st.markdown("---")
         st.markdown("## 📊 Input Parameters")
         st.markdown("Adjust the concrete mixture proportions:")
         
@@ -236,7 +243,7 @@ def main():
                     max_value=float(max_val),
                     value=float(default_val),
                     step=1.0,
-                    help="Age of concrete in days (1-365)"
+                    help="Age of concrete in days"
                 )
             else:
                 input_data[feature] = st.number_input(
@@ -251,6 +258,27 @@ def main():
         # Reset button
         if st.button("🔄 Reset to Default Values", use_container_width=True):
             st.rerun()
+    
+    # Check if model is loaded
+    if st.session_state.model is None:
+        st.warning("""
+        ### ⚠️ Model Not Loaded
+        
+        Please upload the model file 'model (2).pkl' using the file uploader in the sidebar.
+        
+        **Instructions:**
+        1. Click on "Browse files" in the sidebar under "Upload Model File"
+        2. Select your 'model (2).pkl' file
+        3. Wait for the model to load
+        
+        **Note:** The model will be loaded into memory and used for predictions.
+        """)
+        
+        # Show demo mode option
+        if st.button("🎯 Try Demo Mode (Sample Predictions)"):
+            st.session_state.demo_mode = True
+            st.rerun()
+        st.stop()
     
     # Main content area
     col1, col2 = st.columns([1, 1])
@@ -271,19 +299,22 @@ def main():
         display_df = pd.DataFrame(display_data)
         st.dataframe(display_df, hide_index=True, use_container_width=True)
         
-        # Feature importance plot (if we have data)
-        if df is not None:
+        # Data overview if available
+        if st.session_state.df is not None:
             st.markdown('<div class="sub-header">📈 Data Overview</div>', 
                         unsafe_allow_html=True)
-            st.metric("Total Records", f"{len(df):,}")
-            st.metric("Strength Range", f"{df['csMPa'].min():.1f} - {df['csMPa'].max():.1f} MPa")
+            col1a, col1b = st.columns(2)
+            with col1a:
+                st.metric("Total Records", f"{len(st.session_state.df):,}")
+            with col1b:
+                st.metric("Features", f"{len(FEATURES)}")
     
     with col2:
         st.markdown('<div class="sub-header">🎯 Prediction Results</div>', 
                     unsafe_allow_html=True)
         
         # Make prediction
-        prediction = predict_strength(model, input_data)
+        prediction = predict_strength(st.session_state.model, input_data)
         category, emoji = get_strength_category(prediction)
         
         # Display prediction
@@ -306,16 +337,16 @@ def main():
             st.success("🏆 **Note:** Very high-strength concrete! Suitable for specialized high-performance applications.")
     
     # Visualization section (only if data is available)
-    if df is not None:
+    if st.session_state.df is not None:
         st.markdown("---")
         st.markdown('<div class="sub-header">📊 Analysis & Visualization</div>', 
                     unsafe_allow_html=True)
         
-        tab1, tab2, tab3 = st.tabs(["📈 Strength Distribution", "🔬 Feature Correlation", "📉 Prediction Analysis"])
+        tab1, tab2, tab3 = st.tabs(["📈 Strength Distribution", "🔬 Feature Correlation", "📉 Similar Mixtures"])
         
         with tab1:
             # Strength distribution histogram
-            fig = px.histogram(df, x='csMPa', nbins=50, 
+            fig = px.histogram(st.session_state.df, x='csMPa', nbins=50, 
                               title='Distribution of Concrete Compressive Strengths in Dataset',
                               labels={'csMPa': 'Compressive Strength (MPa)'},
                               color_discrete_sequence=['#1E3A5F'])
@@ -325,28 +356,31 @@ def main():
             st.plotly_chart(fig, use_container_width=True)
             
             # Statistics
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Mean Strength", f"{df['csMPa'].mean():.1f} MPa")
-            with col2:
-                st.metric("Median Strength", f"{df['csMPa'].median():.1f} MPa")
-            with col3:
-                st.metric("Std Deviation", f"{df['csMPa'].std():.1f} MPa")
-            with col4:
-                percentile = (df['csMPa'] < prediction).mean() * 100
-                st.metric("Your Strength Percentile", f"{percentile:.1f}%")
+            col1a, col1b, col1c, col1d = st.columns(4)
+            with col1a:
+                st.metric("Mean Strength", f"{st.session_state.df['csMPa'].mean():.1f} MPa")
+            with col1b:
+                st.metric("Median Strength", f"{st.session_state.df['csMPa'].median():.1f} MPa")
+            with col1c:
+                st.metric("Std Deviation", f"{st.session_state.df['csMPa'].std():.1f} MPa")
+            with col1d:
+                percentile = (st.session_state.df['csMPa'] < prediction).mean() * 100
+                st.metric("Percentile", f"{percentile:.1f}%")
         
         with tab2:
-            # Correlation heatmap
-            corr_matrix = df[FEATURES + ['csMPa']].corr()
-            fig = px.imshow(corr_matrix, text_auto=True, aspect="auto",
-                           title="Feature Correlation Matrix",
-                           color_continuous_scale='RdBu_r',
-                           zmin=-1, zmax=1)
-            fig.update_layout(height=600)
-            st.plotly_chart(fig, use_container_width=True)
-            
-            st.info("💡 **Insight:** Features with high positive correlation (red) to strength are beneficial, while negative correlation (blue) indicates higher values may reduce strength.")
+            if len(st.session_state.df) > 10:
+                # Correlation heatmap
+                corr_matrix = st.session_state.df[FEATURES + ['csMPa']].corr()
+                fig = px.imshow(corr_matrix, text_auto=True, aspect="auto",
+                               title="Feature Correlation Matrix",
+                               color_continuous_scale='RdBu_r',
+                               zmin=-1, zmax=1)
+                fig.update_layout(height=600)
+                st.plotly_chart(fig, use_container_width=True)
+                
+                st.info("💡 **Insight:** Features with high positive correlation (red) to strength are beneficial, while negative correlation (blue) indicates higher values may reduce strength.")
+            else:
+                st.info("Need more data points for correlation analysis.")
         
         with tab3:
             # Sample similar mixtures
@@ -354,11 +388,11 @@ def main():
             
             # Calculate similarity based on Euclidean distance
             input_array = np.array([input_data[f] for f in FEATURES])
-            df_features = df[FEATURES].values
+            df_features = st.session_state.df[FEATURES].values
             distances = np.sqrt(((df_features - input_array) ** 2).sum(axis=1))
             similar_indices = distances.argsort()[:10]
             
-            similar_mixtures = df.iloc[similar_indices][FEATURES + ['csMPa']].copy()
+            similar_mixtures = st.session_state.df.iloc[similar_indices][FEATURES + ['csMPa']].copy()
             similar_mixtures['Similarity Score'] = (1 - distances[similar_indices] / distances[similar_indices].max()) * 100
             
             st.dataframe(
@@ -378,9 +412,7 @@ def main():
                 hide_index=True
             )
             
-            st.caption("Showing the 10 most similar mixtures from the training dataset based on mixture proportions.")
-    else:
-        st.info("📊 Upload the data file to see visualizations and analysis.")
+            st.caption("Showing the 10 most similar mixtures from the training dataset.")
     
     # Footer
     st.markdown("---")
