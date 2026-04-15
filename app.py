@@ -52,6 +52,52 @@ st.markdown("""
         color: #666;
         text-align: center;
     }
+    .footer {
+        text-align: center;
+        color: #666;
+        font-size: 0.8rem;
+        padding: 20px;
+        border-top: 1px solid #ddd;
+        margin-top: 30px;
+    }
+    .linkedin-btn {
+        display: inline-block;
+        background-color: #0077b5;
+        color: white;
+        padding: 8px 20px;
+        border-radius: 5px;
+        text-decoration: none;
+        font-weight: bold;
+        margin: 10px 5px;
+        transition: all 0.3s ease;
+    }
+    .linkedin-btn:hover {
+        background-color: #005582;
+        transform: translateY(-2px);
+    }
+    .github-btn {
+        display: inline-block;
+        background-color: #333;
+        color: white;
+        padding: 8px 20px;
+        border-radius: 5px;
+        text-decoration: none;
+        font-weight: bold;
+        margin: 10px 5px;
+        transition: all 0.3s ease;
+    }
+    .github-btn:hover {
+        background-color: #555;
+        transform: translateY(-2px);
+    }
+    .creator-section {
+        text-align: center;
+        padding: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+        margin-top: 20px;
+        color: white;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -258,6 +304,21 @@ def main():
         # Reset button
         if st.button("🔄 Reset to Default Values", use_container_width=True):
             st.rerun()
+        
+        # Creator Info in Sidebar
+        st.markdown("---")
+        st.markdown("### 👨‍💻 Creator")
+        st.markdown("**Nikhil Dongare**")
+        
+        # LinkedIn Button in Sidebar
+        linkedin_url = "https://www.linkedin.com/in/nikhil-dongare-5958092ba"
+        st.markdown(f"""
+            <div style="text-align: center;">
+                <a href="{linkedin_url}" target="_blank" class="linkedin-btn" style="display: inline-block; width: 100%; text-align: center;">
+                    🔗 Connect on LinkedIn
+                </a>
+            </div>
+        """, unsafe_allow_html=True)
     
     # Check if model is loaded
     if st.session_state.model is None:
@@ -414,14 +475,27 @@ def main():
             
             st.caption("Showing the 10 most similar mixtures from the training dataset.")
     
-    # Footer
+    # Footer with LinkedIn and Creator Info
     st.markdown("---")
-    st.markdown("""
-        <div style="text-align: center; color: #666; font-size: 0.8rem;">
-            <p>⚠️ <strong>Disclaimer:</strong> This prediction is based on a machine learning model trained on specific concrete mixture data. 
-            Actual concrete strength may vary based on curing conditions, material quality, and other factors not captured in this model.</p>
-            <p>🏗️ Built with Streamlit • Model: XGBoost Regressor</p>
+    
+    # Create a beautiful footer with LinkedIn profile
+    linkedin_url = "https://www.linkedin.com/in/nikhil-dongare-5958092ba"
+    
+    st.markdown(f"""
+    <div class="footer">
+        <div class="creator-section">
+            <h3>👨‍💻 Created by Nikhil Dongare</h3>
+            <p>Data Science Enthusiast | Machine Learning Engineer | AI Developer</p>
+            <a href="{linkedin_url}" target="_blank" class="linkedin-btn">🔗 Connect with me on LinkedIn</a>
+            <br><br>
+            <small>📧 For collaborations and inquiries, reach out on LinkedIn</small>
         </div>
+        <br>
+        <p>⚠️ <strong>Disclaimer:</strong> This prediction is based on a machine learning model trained on specific concrete mixture data. 
+        Actual concrete strength may vary based on curing conditions, material quality, and other factors not captured in this model.</p>
+        <p>🏗️ Built with Streamlit • Model: XGBoost Regressor</p>
+        <p>© 2024 Nikhil Dongare - All Rights Reserved</p>
+    </div>
     """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
