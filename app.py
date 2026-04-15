@@ -5,6 +5,8 @@ import pickle
 import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import os
+from pathlib import Path
 
 # Page configuration
 st.set_page_config(
@@ -52,12 +54,30 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Get the directory where the script is located
+SCRIPT_DIR = Path(__file__).parent.absolute()
+
+# File paths
+MODEL_PATH = SCRIPT_DIR / 'model (2).pkl'
+DATA_PATH = SCRIPT_DIR / 'Concrete_Data_Yeh.csv'
+
+# Alternative paths if files are in different locations
+# You can also specify absolute paths like:
+# MODEL_PATH = Path('/path/to/your/model (2).pkl')
+# DATA_PATH = Path('/path/to/your/Concrete_Data_Yeh.csv')
+
 # Load the model
 @st.cache_resource
 def load_model():
     try:
-        with open('model (2).pkl', 'rb') as f:
+        if not MODEL_PATH.exists():
+            st.error(f"Model file not found at: {MODEL_PATH}")
+            st.info("Please ensure 'model (2).pkl' is in the same directory as this script.")
+            return None
+        
+        with open(MODEL_PATH, 'rb') as f:
             model = pickle.load(f)
+        st.success("✅ Model loaded successfully!")
         return model
     except Exception as e:
         st.error(f"Error loading model: {e}")
@@ -67,7 +87,13 @@ def load_model():
 @st.cache_data
 def load_data():
     try:
-        df = pd.read_csv('Concrete_Data_Yeh.csv')
+        if not DATA_PATH.exists():
+            st.error(f"Data file not found at: {DATA_PATH}")
+            st.info("Please ensure 'Concrete_Data_Yeh.csv' is in the same directory as this script.")
+            return None
+        
+        df = pd.read_csv(DATA_PATH)
+        st.success(f"✅ Data loaded successfully! ({len(df)} records)")
         return df
     except Exception as e:
         st.error(f"Error loading data: {e}")
@@ -129,6 +155,16 @@ def get_strength_category(strength):
     else:
         return "Very High Strength", "💪"
 
+# File upload section for manual file selection
+def file_upload_section():
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 📁 File Upload")
+    
+    uploaded_model = st.sidebar.file_uploader("Upload Model File (optional)", type=['pkl'])
+    uploaded_data = st.sidebar.file_uploader("Upload Data File (optional)", type=['csv'])
+    
+    return uploaded_model, uploaded_data
+
 # Main app
 def main():
     # Header
@@ -137,11 +173,48 @@ def main():
     st.markdown('<div class="info-text">Predict the 28-day compressive strength of concrete using mixture proportions</div>', 
                 unsafe_allow_html=True)
     
+    # File upload section
+    uploaded_model, uploaded_data = file_upload_section()
+    
     # Load model and data
-    model = load_model()
-    df = load_data()
+    model = None
+    df = None
+    
+    if uploaded_model is not None:
+        # Use uploaded model
+        try:
+            model = pickle.load(uploaded_model)
+            st.sidebar.success("✅ Custom model loaded!")
+        except Exception as e:
+            st.sidebar.error(f"Error loading custom model: {e}")
+    else:
+        # Try to load from default path
+        model = load_model()
+    
+    if uploaded_data is not None:
+        # Use uploaded data
+        try:
+            df = pd.read_csv(uploaded_data)
+            st.sidebar.success(f"✅ Custom data loaded! ({len(df)} records)")
+        except Exception as e:
+            st.sidebar.error(f"Error loading custom data: {e}")
+    else:
+        # Try to load from default path
+        df = load_data()
     
     if model is None:
+        st.warning("""
+        ### ⚠️ Model Not Loaded
+        
+        Please ensure the model file 'model (2).pkl' is in the same directory as this script.
+        
+        **Troubleshooting steps:**
+        1. Check if the file exists in the current directory
+        2. Use the file uploader in the sidebar to upload the model manually
+        3. Verify the file name is exactly 'model (2).pkl' (including spaces)
+        
+        **Current working directory:** `{}`
+        """.format(os.getcwd()))
         st.stop()
     
     # Sidebar for input
@@ -232,12 +305,12 @@ def main():
         else:
             st.success("🏆 **Note:** Very high-strength concrete! Suitable for specialized high-performance applications.")
     
-    # Visualization section
-    st.markdown("---")
-    st.markdown('<div class="sub-header">📊 Analysis & Visualization</div>', 
-                unsafe_allow_html=True)
-    
+    # Visualization section (only if data is available)
     if df is not None:
+        st.markdown("---")
+        st.markdown('<div class="sub-header">📊 Analysis & Visualization</div>', 
+                    unsafe_allow_html=True)
+        
         tab1, tab2, tab3 = st.tabs(["📈 Strength Distribution", "🔬 Feature Correlation", "📉 Prediction Analysis"])
         
         with tab1:
@@ -306,6 +379,8 @@ def main():
             )
             
             st.caption("Showing the 10 most similar mixtures from the training dataset based on mixture proportions.")
+    else:
+        st.info("📊 Upload the data file to see visualizations and analysis.")
     
     # Footer
     st.markdown("---")
