@@ -49,7 +49,4 @@ An interactive web application that predicts the compressive strength of concret
 - Python 3.8 or higher
 - pip package manager
 
-### Step 1: Clone the repository
-```bash
-git clone https://github.com/your-username/concrete-strength-predictor.git
-cd concrete-strength-predictor
+
